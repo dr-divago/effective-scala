@@ -103,7 +103,7 @@ object PersistentModel extends Model:
    */
 
   def create(task: Task): Id =
-    val id = loadId()
+    val id = loadId().next
     val tasksUpdated = loadTasks().toList.appended(id, task)
     saveId(id)
     saveTasks(Tasks(tasksUpdated))
@@ -111,29 +111,32 @@ object PersistentModel extends Model:
 
 
   def read(id: Id): Option[Task] =
-    val tasks = loadTasks()
-    tasks.toMap.get(id)
+    loadTasks().toMap.get(id)
 
   def update(id: Id)(f: Task => Task): Option[Task] =
-    val tasks = loadTasks()
-    val updatedTask = tasks.toMap.updatedWith(id)( task => task.map(f))
+    val updatedTask = loadTasks().toMap.updatedWith(id)( task => task.map(f))
     saveTasks(Tasks(updatedTask.toList))
     updatedTask.get(id)
 
   def delete(id: Id): Boolean =
-    ???
-
+    val tasksWitIdRemoved = loadTasks().toMap.removed(id)
+    saveTasks(Tasks(tasksWitIdRemoved))
+    true
   def tasks: Tasks =
-    ???
+    Tasks(loadTasks().toList.sortBy( _._1))
 
   def tasks(tag: Tag): Tasks =
-    ???
+    Tasks(loadTasks().toMap.filter(_._2.tags.contains(tag)))
+
 
   def complete(id: Id): Option[Task] =
-    ???
+    val completedTasks = loadTasks().toMap.updatedWith(id)(_.map(_.complete))
+    saveTasks(Tasks(completedTasks))
+    completedTasks.get(id)
 
   def tags: Tags =
-    ???
+    val uniqueTags = loadTasks().toList.flatMap(x => x._2.tags).toSet
+    Tags(uniqueTags.toList)
 
   /**
   * Delete the tasks and id files if they exist.
