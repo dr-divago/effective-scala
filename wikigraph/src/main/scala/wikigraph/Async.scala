@@ -16,7 +16,7 @@ object Async:
     * return a failed future with the same error.
     */
   def transformSuccess(eventuallyX: Future[Int]): Future[Boolean] =
-    ???
+    eventuallyX.map(i => i % 2 == 0)
 
   /**
     * Transforms a failed future value of type `Int` into a successful
@@ -28,7 +28,7 @@ object Async:
     * return a successful future with the same value.
     */
   def recoverFailure(eventuallyX: Future[Int]): Future[Int] =
-    ???
+    eventuallyX.recover({ case NonFatal(e) => -1 })
 
   /**
     * Performs two asynchronous computation, one after the other.
@@ -45,7 +45,9 @@ object Async:
     asyncComputation1: () => Future[A],
     asyncComputation2: () => Future[B]
   ): Future[(A, B)] =
-    ???
+    asyncComputation1.apply().flatMap { a =>
+      asyncComputation2.apply().map(b => (a, b))
+    }
 
   /**
     * Concurrently performs two asynchronous computations and pair their
@@ -59,7 +61,7 @@ object Async:
     asyncComputation1: () => Future[A],
     asyncComputation2: () => Future[B]
   ): Future[(A, B)] =
-    ???
+    asyncComputation1.apply() zip asyncComputation2.apply()
 
   /**
     * Makes a chocolate cake.
@@ -77,7 +79,10 @@ object Async:
     mixEverything: (MeltedButterAndChocolate, Eggs, Sugar) => Future[CakeDough],
     bake: CakeDough => Future[Cake]
   ): Future[Cake] =
-    ???
+    meltButterWithChocolate(butter, chocolate).flatMap(meltedButterAndChocolate
+    => mixEverything(meltedButterAndChocolate, eggs, sugar).flatMap(
+        cakeDough => bake(cakeDough)
+      ))
 
   /**
     * Attempts to perform an asynchronous computation at most
@@ -90,6 +95,9 @@ object Async:
     * Hint: recursively call `insist` in the failure handler.
     */
   def insist[A](asyncComputation: () => Future[A], maxAttempts: Int): Future[A] =
-    ???
+    val leftAttempts = maxAttempts - 1
+    asyncComputation
+      .apply()
+      .recoverWith({ case e: Exception if leftAttempts > 0 => insist(asyncComputation, leftAttempts) })
 
 end Async
