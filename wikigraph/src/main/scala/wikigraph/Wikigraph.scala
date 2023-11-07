@@ -83,15 +83,34 @@ final class Wikigraph(client: Wikipedia):
       *       including the failed node. Refer to the documentation of [[wikigraph.WikiResult#fallbackTo]].
       */
     def iter(visited: Set[ArticleId], q: Queue[(Int, ArticleId)]): WikiResult[Option[Int]] =
-      ???
+      if (q.isEmpty) WikiResult.successful(None)
+      else {
+        val ((currentDepth, currentArticle), remainingQueue) = q.dequeue
+        if (currentDepth >= maxDepth) WikiResult.successful(None)
+        else {
+          client.linksFrom(currentArticle).flatMap(articleIds => {
+            if (articleIds.contains(target)) then WikiResult.successful(Some(currentDepth))
+            else
+              iter(
+                visited + currentArticle,
+                remainingQueue
+                  .enqueueAll(
+                    articleIds
+                      .filter(articleId => !visited.contains(articleId))
+                      .map(articleId => (currentDepth + 1, articleId)))
+              )
+          }).fallbackTo(iter(visited + currentArticle, remainingQueue))
+        }
+      }
     end iter
+
     if start == target then
-      // The start node is the one we are looking for: the search succeeds with
-      // a distance of 0.
+    // The start node is the one we are looking for: the search succeeds with
+    // a distance of 0.
       WikiResult.successful(Some(0))
     else
-      // Otherwise, look into the pages linked from the `start` page, and
-      // mark that page as already "visited"
+    // Otherwise, look into the pages linked from the `start` page, and
+    // mark that page as already "visited"
       iter(Set(start), Queue(1 -> start))
 
   /**
@@ -123,5 +142,17 @@ final class Wikigraph(client: Wikipedia):
     *       `breadthFirstSearch`
     */
   def distanceMatrix(titles: List[String], maxDepth: Int = 50): WikiResult[Seq[(String, String, Option[Int])]] =
-    ???
+    val allArticlePairs = for {
+      sourceArticle <- titles
+      distArticle <- titles
+      if sourceArticle != distArticle
+    } yield (sourceArticle, distArticle)
+
+    WikiResult.traverse[(String, String), (String, String, Option[Int])](allArticlePairs) { (sourceTitle, distTitle) =>
+      client.searchId(sourceTitle).zip(client.searchId(distTitle)).flatMap { (sourceId, distId) =>
+        breadthFirstSearch(sourceId, distId, maxDepth).flatMap { distance =>
+          WikiResult.successful(sourceTitle, distTitle, distance)
+        }
+      }
+    }
 end Wikigraph

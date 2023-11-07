@@ -75,7 +75,8 @@ case class WikiResult[A](value: Future[Either[Seq[WikiError], A]]):
     */
   def flatMap[B](f: A => WikiResult[B])(using ExecutionContext): WikiResult[B] = 
     val futureB: Future[Either[Seq[WikiError], B]] = value.flatMap {
-      ???
+      case Left(error) => Future.successful[Either[Seq[WikiError], B]](Left(error))
+      case Right(wikiValue) => f(wikiValue).value
     }
     WikiResult(futureB)
 
@@ -90,7 +91,12 @@ case class WikiResult[A](value: Future[Either[Seq[WikiError], A]]):
     */
   def zip[B](that: WikiResult[B])(using ExecutionContext): WikiResult[(A, B)] =
     def zipEithersAcc(a: Either[Seq[WikiError], A], b: Either[Seq[WikiError], B]): Either[Seq[WikiError], (A, B)] =
-      ???
+      (a, b) match {
+        case (Right(a), Right(b)) => Right((a, b))
+        case (Left(e), Right(_)) => Left(e)
+        case (Right(_), Left(e)) => Left(e)
+        case (Left(e1), Left(e2)) => Left(e1 ++ e2)
+      }
     WikiResult(this.value.flatMap { thisEither =>
       that.value.map { thatEither =>
         zipEithersAcc(thisEither, thatEither)
@@ -149,6 +155,8 @@ object WikiResult:
     * lecture “Manipulating Validated Values”.
     */
   def traverse[A, B](as: Seq[A])(f: A => WikiResult[B])(using ExecutionContext): WikiResult[Seq[B]] =
-    ???
+    as.map(f).foldLeft(WikiResult.successful[Seq[B]](Seq.empty[B]))((accumulated, currentElement) => {
+      accumulated.zip(currentElement.map(Seq(_))).map(e => e._1 ++ e._2)
+    })
 
 end WikiResult
